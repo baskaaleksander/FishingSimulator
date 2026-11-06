@@ -1,0 +1,14 @@
+{
+    "name": "FishingSim.Editor",
+    "rootNamespace": "FishingSim.EditorTools",
+    "references": [
+        "FishingSim.Runtime",
+        "Unity.InputSystem",
+        "Unity.RenderPipelines.Universal.Runtime",
+        "UnityEngine.UI"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "autoReferenced": false
+}
