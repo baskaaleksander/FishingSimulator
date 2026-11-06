@@ -74,6 +74,9 @@ namespace FishingSim.EditorTools
             waterGo.layer = waterLayer;
             var wc = waterGo.GetComponent<BoxCollider>();
             wc.isTrigger = true;
+            // thick trigger (3 m deep, top flush with the surface) so a fast lure cannot tunnel through it
+            wc.size = new Vector3(1f, 30f, 1f);
+            wc.center = new Vector3(0f, -14.5f, 0f);
             Box("Dock", env, new Vector3(0, -0.15f, 1.5f), new Vector3(3, 0.2f, 6), wood);
 
             var shore = new GameObject("ShorePoint").transform;
@@ -121,11 +124,33 @@ namespace FishingSim.EditorTools
             rb.isKinematic = true;
             rb.interpolation = RigidbodyInterpolation.Interpolate;
             rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
+            lure.AddComponent<LureController>();
             Directory.CreateDirectory(Root + "/Prefabs");
             var prefab = PrefabUtility.SaveAsPrefabAsset(lure, Root + "/Prefabs/Lure.prefab");
             Object.DestroyImmediate(lure);
             var lureInstance = (GameObject)PrefabUtility.InstantiatePrefab(prefab);
             lureInstance.transform.position = tip.position;
+
+            var castingConfig = LoadOrCreate<CastingConfig>(Root + "/Config/CastingConfig.asset");
+            var caster = player.AddComponent<CastingController>();
+            var casterSo = new SerializedObject(caster);
+            casterSo.FindProperty("input").objectReferenceValue = input;
+            casterSo.FindProperty("lure").objectReferenceValue = lureInstance.GetComponent<LureController>();
+            casterSo.FindProperty("cameraTransform").objectReferenceValue = camGo.transform;
+            casterSo.FindProperty("rodTip").objectReferenceValue = tip;
+            casterSo.FindProperty("config").objectReferenceValue = castingConfig;
+            casterSo.ApplyModifiedPropertiesWithoutUndo();
+
+            var lineMat = MakeMat("Line", new Color(0.9f, 0.9f, 0.9f));
+            var lineGo = new GameObject("FishingLine");
+            var lr = lineGo.AddComponent<LineRenderer>();
+            lr.widthMultiplier = 0.008f;
+            lr.sharedMaterial = lineMat;
+            lr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            var lineSo = new SerializedObject(lineGo.AddComponent<FishingLineRenderer>());
+            lineSo.FindProperty("rodTip").objectReferenceValue = tip;
+            lineSo.FindProperty("lure").objectReferenceValue = lureInstance.transform;
+            lineSo.ApplyModifiedPropertiesWithoutUndo();
 
             var canvasGo = new GameObject("HUD Canvas");
             var canvas = canvasGo.AddComponent<Canvas>();
@@ -140,9 +165,80 @@ namespace FishingSim.EditorTools
             ch.color = new Color(1, 1, 1, 0.8f);
             ch.raycastTarget = false;
 
+            var barBack = MakeImage("PowerBar", canvasGo.transform, new Color(0, 0, 0, 0.5f));
+            barBack.rectTransform.anchorMin = barBack.rectTransform.anchorMax = new Vector2(0.5f, 0f);
+            barBack.rectTransform.anchoredPosition = new Vector2(0, 120);
+            barBack.rectTransform.sizeDelta = new Vector2(420, 28);
+            var barFill = MakeImage("Fill", barBack.transform, new Color(0.95f, 0.75f, 0.1f));
+            Stretch(barFill.rectTransform, 4f);
+            barFill.rectTransform.pivot = new Vector2(0f, 0.5f);
+            barFill.rectTransform.localScale = new Vector3(0f, 1f, 1f);
+
+            var stateLabel = MakeText("StateLabel", canvasGo.transform, 28, TextAnchor.UpperLeft);
+            stateLabel.rectTransform.anchorMin = stateLabel.rectTransform.anchorMax = new Vector2(0f, 1f);
+            stateLabel.rectTransform.pivot = new Vector2(0f, 1f);
+            stateLabel.rectTransform.anchoredPosition = new Vector2(24, -24);
+            stateLabel.rectTransform.sizeDelta = new Vector2(500, 40);
+
+            var hintLabel = MakeText("HintLabel", canvasGo.transform, 32, TextAnchor.MiddleCenter);
+            hintLabel.rectTransform.anchorMin = hintLabel.rectTransform.anchorMax = new Vector2(0.5f, 0f);
+            hintLabel.rectTransform.anchoredPosition = new Vector2(0, 70);
+            hintLabel.rectTransform.sizeDelta = new Vector2(900, 44);
+
+            var hud = canvasGo.AddComponent<HUDController>();
+            var hudSo = new SerializedObject(hud);
+            hudSo.FindProperty("caster").objectReferenceValue = caster;
+            hudSo.FindProperty("powerRoot").objectReferenceValue = barBack.gameObject;
+            hudSo.FindProperty("powerFill").objectReferenceValue = barFill;
+            hudSo.FindProperty("stateLabel").objectReferenceValue = stateLabel;
+            hudSo.FindProperty("hintLabel").objectReferenceValue = hintLabel;
+            hudSo.ApplyModifiedPropertiesWithoutUndo();
+
             EditorSceneManager.SaveScene(scene, ScenePath);
             EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(ScenePath, true) };
             Debug.Log("FishingLake scene built: " + ScenePath);
+        }
+
+        static T LoadOrCreate<T>(string path) where T : ScriptableObject
+        {
+            var asset = AssetDatabase.LoadAssetAtPath<T>(path);
+            if (asset == null)
+            {
+                asset = ScriptableObject.CreateInstance<T>();
+                AssetDatabase.CreateAsset(asset, path);
+            }
+            return asset;
+        }
+
+        static Image MakeImage(string name, Transform parent, Color color)
+        {
+            var go = new GameObject(name, typeof(RectTransform), typeof(Image));
+            go.transform.SetParent(parent, false);
+            var img = go.GetComponent<Image>();
+            img.color = color;
+            img.raycastTarget = false;
+            return img;
+        }
+
+        static Text MakeText(string name, Transform parent, int size, TextAnchor anchor)
+        {
+            var go = new GameObject(name, typeof(RectTransform), typeof(Text));
+            go.transform.SetParent(parent, false);
+            var text = go.GetComponent<Text>();
+            text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            text.fontSize = size;
+            text.alignment = anchor;
+            text.color = Color.white;
+            text.raycastTarget = false;
+            return text;
+        }
+
+        static void Stretch(RectTransform rt, float inset)
+        {
+            rt.anchorMin = Vector2.zero;
+            rt.anchorMax = Vector2.one;
+            rt.offsetMin = new Vector2(inset, inset);
+            rt.offsetMax = new Vector2(-inset, -inset);
         }
 
         static GameObject Box(string name, Transform parent, Vector3 pos, Vector3 scale, Material mat)
