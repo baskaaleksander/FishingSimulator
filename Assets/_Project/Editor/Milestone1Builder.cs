@@ -152,9 +152,47 @@ namespace FishingSim.EditorTools
             lineSo.FindProperty("lure").objectReferenceValue = lureInstance.transform;
             lineSo.ApplyModifiedPropertiesWithoutUndo();
 
+            var biteConfig = LoadOrCreate<BiteConfig>(Root + "/Config/BiteConfig.asset");
+            var fishConfig = LoadOrCreate<FishConfig>(Root + "/Config/FishConfig.asset");
+            var fightConfig = LoadOrCreate<FightConfig>(Root + "/Config/FightConfig.asset");
+
+            var fishMat = MakeMat("Fish", new Color(0.95f, 0.5f, 0.15f));
+            var fish = new GameObject("Fish").transform;
+            var fishBody = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+            Object.DestroyImmediate(fishBody.GetComponent<Collider>());
+            fishBody.transform.SetParent(fish, false);
+            fishBody.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+            fishBody.transform.localScale = new Vector3(0.22f, 0.35f, 0.22f);
+            fishBody.GetComponent<Renderer>().sharedMaterial = fishMat;
+
+            var systems = new GameObject("FishingSystems");
+
+            var biteSystem = systems.AddComponent<BiteSystem>();
+            var biteSo = new SerializedObject(biteSystem);
+            biteSo.FindProperty("lure").objectReferenceValue = lureInstance.GetComponent<LureController>();
+            biteSo.FindProperty("config").objectReferenceValue = biteConfig;
+            biteSo.ApplyModifiedPropertiesWithoutUndo();
+
+            var fishAI = systems.AddComponent<FishAIController>();
+            var fishAiSo = new SerializedObject(fishAI);
+            fishAiSo.FindProperty("config").objectReferenceValue = fishConfig;
+            fishAiSo.ApplyModifiedPropertiesWithoutUndo();
+
+            var fight = systems.AddComponent<FishFightController>();
+            var fightSo = new SerializedObject(fight);
+            fightSo.FindProperty("input").objectReferenceValue = input;
+            fightSo.FindProperty("lure").objectReferenceValue = lureInstance.GetComponent<LureController>();
+            fightSo.FindProperty("fishAI").objectReferenceValue = fishAI;
+            fightSo.FindProperty("line").objectReferenceValue = lineGo.GetComponent<FishingLineRenderer>();
+            fightSo.FindProperty("fish").objectReferenceValue = fish;
+            fightSo.FindProperty("shorePoint").objectReferenceValue = shore;
+            fightSo.FindProperty("config").objectReferenceValue = fightConfig;
+            fightSo.ApplyModifiedPropertiesWithoutUndo();
+
             var canvasGo = new GameObject("HUD Canvas");
             var canvas = canvasGo.AddComponent<Canvas>();
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            canvasGo.AddComponent<GraphicRaycaster>();
             var scaler = canvasGo.AddComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(1920, 1080);
@@ -185,6 +223,46 @@ namespace FishingSim.EditorTools
             hintLabel.rectTransform.anchoredPosition = new Vector2(0, 70);
             hintLabel.rectTransform.sizeDelta = new Vector2(900, 44);
 
+            var fightPanel = new GameObject("FightPanel", typeof(RectTransform)).GetComponent<RectTransform>();
+            fightPanel.SetParent(canvasGo.transform, false);
+            fightPanel.anchorMin = fightPanel.anchorMax = new Vector2(0.5f, 0f);
+            fightPanel.anchoredPosition = new Vector2(0, 230);
+            fightPanel.sizeDelta = new Vector2(460, 90);
+
+            var tensionBack = MakeBar("TensionBar", fightPanel, new Vector2(0, 22), new Vector2(440, 30), new Color(0.3f, 0.85f, 0.35f), "LINE TENSION", out var tensionFill);
+            var breakMarker = MakeImage("BreakMarker", tensionBack.transform, Color.white);
+            breakMarker.rectTransform.anchorMin = new Vector2(0.9f, 0f);
+            breakMarker.rectTransform.anchorMax = new Vector2(0.9f, 1f);
+            breakMarker.rectTransform.sizeDelta = new Vector2(3, 6);
+            var staminaBack = MakeBar("StaminaBar", fightPanel, new Vector2(0, -22), new Vector2(440, 30), new Color(0.3f, 0.6f, 0.95f), "FISH STAMINA", out var staminaFill);
+
+            var distanceLabel = MakeText("DistanceLabel", fightPanel, 28, TextAnchor.MiddleCenter);
+            distanceLabel.rectTransform.anchoredPosition = new Vector2(0, 62);
+            distanceLabel.rectTransform.sizeDelta = new Vector2(500, 36);
+
+            var fishStateLabel = MakeText("FishStateLabel", fightPanel, 26, TextAnchor.MiddleCenter);
+            fishStateLabel.rectTransform.anchoredPosition = new Vector2(0, -62);
+            fishStateLabel.rectTransform.sizeDelta = new Vector2(500, 36);
+
+            var biteLabel = MakeText("BiteLabel", canvasGo.transform, 64, TextAnchor.MiddleCenter);
+            biteLabel.color = new Color(1f, 0.85f, 0.2f);
+            biteLabel.rectTransform.anchorMin = biteLabel.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
+            biteLabel.rectTransform.anchoredPosition = new Vector2(0, 120);
+            biteLabel.rectTransform.sizeDelta = new Vector2(600, 90);
+            biteLabel.text = "BITE!";
+            biteLabel.gameObject.SetActive(false);
+
+            var resultPanel = MakeImage("ResultPanel", canvasGo.transform, new Color(0, 0, 0, 0.65f));
+            Stretch(resultPanel.rectTransform, 0f);
+            var resultLabel = MakeText("ResultLabel", resultPanel.transform, 72, TextAnchor.MiddleCenter);
+            resultLabel.rectTransform.anchorMin = resultLabel.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
+            resultLabel.rectTransform.anchoredPosition = new Vector2(0, 80);
+            resultLabel.rectTransform.sizeDelta = new Vector2(900, 220);
+            var tryAgain = MakeButton("TryAgainButton", resultPanel.transform, "Try again", new Vector2(0, -110), new Vector2(300, 70));
+
+            var eventSystem = new GameObject("EventSystem", typeof(UnityEngine.EventSystems.EventSystem), typeof(UnityEngine.InputSystem.UI.InputSystemUIInputModule));
+            eventSystem.GetComponent<UnityEngine.InputSystem.UI.InputSystemUIInputModule>().AssignDefaultActions();
+
             var hud = canvasGo.AddComponent<HUDController>();
             var hudSo = new SerializedObject(hud);
             hudSo.FindProperty("caster").objectReferenceValue = caster;
@@ -192,6 +270,18 @@ namespace FishingSim.EditorTools
             hudSo.FindProperty("powerFill").objectReferenceValue = barFill;
             hudSo.FindProperty("stateLabel").objectReferenceValue = stateLabel;
             hudSo.FindProperty("hintLabel").objectReferenceValue = hintLabel;
+            hudSo.FindProperty("fight").objectReferenceValue = fight;
+            hudSo.FindProperty("fish").objectReferenceValue = fishAI;
+            hudSo.FindProperty("bite").objectReferenceValue = biteSystem;
+            hudSo.FindProperty("fightRoot").objectReferenceValue = fightPanel.gameObject;
+            hudSo.FindProperty("tensionFill").objectReferenceValue = tensionFill;
+            hudSo.FindProperty("staminaFill").objectReferenceValue = staminaFill;
+            hudSo.FindProperty("distanceLabel").objectReferenceValue = distanceLabel;
+            hudSo.FindProperty("fishStateLabel").objectReferenceValue = fishStateLabel;
+            hudSo.FindProperty("biteLabel").objectReferenceValue = biteLabel;
+            hudSo.FindProperty("resultRoot").objectReferenceValue = resultPanel.gameObject;
+            hudSo.FindProperty("resultLabel").objectReferenceValue = resultLabel;
+            hudSo.FindProperty("tryAgainButton").objectReferenceValue = tryAgain;
             hudSo.ApplyModifiedPropertiesWithoutUndo();
 
             EditorSceneManager.SaveScene(scene, ScenePath);
@@ -231,6 +321,40 @@ namespace FishingSim.EditorTools
             text.color = Color.white;
             text.raycastTarget = false;
             return text;
+        }
+
+        static Image MakeBar(string name, Transform parent, Vector2 position, Vector2 size, Color fillColor, string label, out Image fill)
+        {
+            var back = MakeImage(name, parent, new Color(0, 0, 0, 0.55f));
+            back.rectTransform.anchorMin = back.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
+            back.rectTransform.anchoredPosition = position;
+            back.rectTransform.sizeDelta = size;
+
+            fill = MakeImage("Fill", back.transform, fillColor);
+            Stretch(fill.rectTransform, 4f);
+            fill.rectTransform.pivot = new Vector2(0f, 0.5f);
+            fill.rectTransform.localScale = new Vector3(0f, 1f, 1f);
+
+            var text = MakeText("Label", back.transform, 18, TextAnchor.MiddleCenter);
+            Stretch(text.rectTransform, 0f);
+            text.text = label;
+            return back;
+        }
+
+        static Button MakeButton(string name, Transform parent, string label, Vector2 position, Vector2 size)
+        {
+            var img = MakeImage(name, parent, new Color(0.2f, 0.55f, 0.9f));
+            img.raycastTarget = true;
+            img.rectTransform.anchorMin = img.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
+            img.rectTransform.anchoredPosition = position;
+            img.rectTransform.sizeDelta = size;
+            var button = img.gameObject.AddComponent<Button>();
+            button.targetGraphic = img;
+
+            var text = MakeText("Label", img.transform, 32, TextAnchor.MiddleCenter);
+            Stretch(text.rectTransform, 0f);
+            text.text = label;
+            return button;
         }
 
         static void Stretch(RectTransform rt, float inset)

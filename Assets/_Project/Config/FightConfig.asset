@@ -1,0 +1,31 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: cca493dbb8be6c745b0c6a5e87cbc70b, type: 3}
+  m_Name: FightConfig
+  m_EditorClassIdentifier: FishingSim.Runtime::FishingSim.FightConfig
+  reelTension: 35
+  tensionRiseRate: 80
+  tensionFallRate: 50
+  fishTensionFactor: 0.8
+  breakThreshold: 90
+  breakTime: 1
+  reelSpeed: 3.5
+  resistPull: 80
+  pullAwayFactor: 0.015
+  catchDistance: 2
+  minStartDistance: 8
+  maxDistance: 60
+  maxStamina: 100
+  moderateTensionMin: 30
+  moderateTensionMax: 80
+  staminaDrainRate: 8
+  staminaRegenRate: 4

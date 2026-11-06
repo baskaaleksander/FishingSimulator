@@ -43,6 +43,11 @@ namespace FishingSim
             rb.linearVelocity = velocity;
         }
 
+        public void MoveTo(Vector3 position)
+        {
+            if (phase == Phase.Floating) floatPosition = position;
+        }
+
         public void ResetLure()
         {
             if (!rb.isKinematic)

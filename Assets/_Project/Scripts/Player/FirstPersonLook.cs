@@ -17,6 +17,17 @@ namespace FishingSim
         {
             yaw = transform.eulerAngles.y;
             SetCursorLocked(true);
+            GameManager.Instance.StateChanged += OnStateChanged;
+        }
+
+        void OnDestroy()
+        {
+            if (GameManager.Instance != null) GameManager.Instance.StateChanged -= OnStateChanged;
+        }
+
+        void OnStateChanged(GameState previous, GameState current)
+        {
+            SetCursorLocked(current != GameState.Caught && current != GameState.Escaped);
         }
 
         void Update()
