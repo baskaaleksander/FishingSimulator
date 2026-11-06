@@ -55,7 +55,7 @@ namespace FishingSim
 
         void Update()
         {
-            if (gm.State == GameState.Fighting) fishStateLabel.text = "Fish: " + fish.State;
+            if (gm.State == GameState.Fighting) fishStateLabel.text = "Ryba: " + FishStateName(fish.State);
 
             if (biteLabelTimer > 0f)
             {
@@ -81,7 +81,7 @@ namespace FishingSim
             tensionFill.color = tension01 < 0.6f
                 ? Color.Lerp(Calm, Warning, tension01 / 0.6f)
                 : Color.Lerp(Warning, Danger, (tension01 - 0.6f) / 0.3f);
-            distanceLabel.text = $"Distance: {distance:0.0} m";
+            distanceLabel.text = $"Odległość: {distance:0.0} m";
         }
 
         void OnBite()
@@ -101,11 +101,11 @@ namespace FishingSim
             fightRoot.SetActive(state == GameState.Fighting);
             resultRoot.SetActive(state == GameState.Caught || state == GameState.Escaped);
 
-            if (state == GameState.Caught) resultLabel.text = "Fish caught";
+            if (state == GameState.Caught) resultLabel.text = "Ryba złowiona!";
             else if (state == GameState.Escaped)
                 resultLabel.text = fight.LastResult == FightResult.LineBroke
-                    ? "Fish escaped\nThe line snapped"
-                    : "Fish escaped\nThe line went slack";
+                    ? "Ryba uciekła\nŻyłka się zerwała"
+                    : "Ryba uciekła\nŻyłka była zbyt luźna";
 
             if (state == GameState.Ready)
             {
@@ -113,7 +113,7 @@ namespace FishingSim
                 biteLabel.gameObject.SetActive(false);
             }
 
-            stateLabel.text = state.ToString();
+            stateLabel.text = StateName(state);
             hintLabel.text = HintFor(state);
         }
 
@@ -126,11 +126,40 @@ namespace FishingSim
         {
             switch (state)
             {
-                case GameState.Ready: return "Hold LMB to charge the cast";
-                case GameState.Charging: return "Release LMB to throw";
-                case GameState.WaitingForBite: return "Waiting for a bite... (RMB to reel in)";
-                case GameState.Fighting: return "Hold RMB to reel, release to ease the tension. Don't let the line go slack!";
+                case GameState.Ready: return "Przytrzymaj LPM, aby naładować rzut";
+                case GameState.Charging: return "Puść LPM, aby zarzucić";
+                case GameState.WaitingForBite: return "Czekasz na branie... (PPM, aby zwinąć żyłkę)";
+                case GameState.Fighting: return "Trzymaj PPM, aby zwijać. Puść, by zmniejszyć napięcie. Nie dopuść do luzu!";
                 default: return "";
+            }
+        }
+
+        static string StateName(GameState state)
+        {
+            switch (state)
+            {
+                case GameState.Ready: return "Gotowy";
+                case GameState.Charging: return "Ładowanie rzutu";
+                case GameState.Casting: return "Rzut";
+                case GameState.WaitingForBite: return "Oczekiwanie na branie";
+                case GameState.Fighting: return "Hol";
+                case GameState.Caught: return "Złowiona";
+                case GameState.Escaped: return "Uciekła";
+                default: return state.ToString();
+            }
+        }
+
+        static string FishStateName(FishState state)
+        {
+            switch (state)
+            {
+                case FishState.Hooked: return "zacięta";
+                case FishState.Struggling: return "szarpie";
+                case FishState.Recovering: return "odpoczywa";
+                case FishState.Exhausted: return "wyczerpana";
+                case FishState.Caught: return "złowiona";
+                case FishState.Escaped: return "uciekła";
+                default: return "—";
             }
         }
     }

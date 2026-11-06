@@ -221,7 +221,7 @@ namespace FishingSim.EditorTools
             var hintLabel = MakeText("HintLabel", canvasGo.transform, 32, TextAnchor.MiddleCenter);
             hintLabel.rectTransform.anchorMin = hintLabel.rectTransform.anchorMax = new Vector2(0.5f, 0f);
             hintLabel.rectTransform.anchoredPosition = new Vector2(0, 70);
-            hintLabel.rectTransform.sizeDelta = new Vector2(900, 44);
+            hintLabel.rectTransform.sizeDelta = new Vector2(1400, 44);
 
             var fightPanel = new GameObject("FightPanel", typeof(RectTransform)).GetComponent<RectTransform>();
             fightPanel.SetParent(canvasGo.transform, false);
@@ -229,12 +229,12 @@ namespace FishingSim.EditorTools
             fightPanel.anchoredPosition = new Vector2(0, 230);
             fightPanel.sizeDelta = new Vector2(460, 90);
 
-            var tensionBack = MakeBar("TensionBar", fightPanel, new Vector2(0, 22), new Vector2(440, 30), new Color(0.3f, 0.85f, 0.35f), "LINE TENSION", out var tensionFill);
+            var tensionBack = MakeBar("TensionBar", fightPanel, new Vector2(0, 22), new Vector2(440, 30), new Color(0.3f, 0.85f, 0.35f), "NAPIĘCIE ŻYŁKI", out var tensionFill);
             var breakMarker = MakeImage("BreakMarker", tensionBack.transform, Color.white);
             breakMarker.rectTransform.anchorMin = new Vector2(0.9f, 0f);
             breakMarker.rectTransform.anchorMax = new Vector2(0.9f, 1f);
             breakMarker.rectTransform.sizeDelta = new Vector2(3, 6);
-            var staminaBack = MakeBar("StaminaBar", fightPanel, new Vector2(0, -22), new Vector2(440, 30), new Color(0.3f, 0.6f, 0.95f), "FISH STAMINA", out var staminaFill);
+            var staminaBack = MakeBar("StaminaBar", fightPanel, new Vector2(0, -22), new Vector2(440, 30), new Color(0.3f, 0.6f, 0.95f), "WYTRZYMAŁOŚĆ RYBY", out var staminaFill);
 
             var distanceLabel = MakeText("DistanceLabel", fightPanel, 28, TextAnchor.MiddleCenter);
             distanceLabel.rectTransform.anchoredPosition = new Vector2(0, 62);
@@ -249,7 +249,7 @@ namespace FishingSim.EditorTools
             biteLabel.rectTransform.anchorMin = biteLabel.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
             biteLabel.rectTransform.anchoredPosition = new Vector2(0, 120);
             biteLabel.rectTransform.sizeDelta = new Vector2(600, 90);
-            biteLabel.text = "BITE!";
+            biteLabel.text = "BRANIE!";
             biteLabel.gameObject.SetActive(false);
 
             var resultPanel = MakeImage("ResultPanel", canvasGo.transform, new Color(0, 0, 0, 0.65f));
@@ -258,7 +258,17 @@ namespace FishingSim.EditorTools
             resultLabel.rectTransform.anchorMin = resultLabel.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
             resultLabel.rectTransform.anchoredPosition = new Vector2(0, 80);
             resultLabel.rectTransform.sizeDelta = new Vector2(900, 220);
-            var tryAgain = MakeButton("TryAgainButton", resultPanel.transform, "Try again", new Vector2(0, -110), new Vector2(300, 70));
+            var tryAgain = MakeButton("TryAgainButton", resultPanel.transform, "Spróbuj ponownie", new Vector2(0, -110), new Vector2(300, 70));
+
+            var fpsLabel = MakeText("FpsLabel", canvasGo.transform, 22, TextAnchor.UpperRight);
+            fpsLabel.rectTransform.anchorMin = fpsLabel.rectTransform.anchorMax = new Vector2(1f, 1f);
+            fpsLabel.rectTransform.pivot = new Vector2(1f, 1f);
+            fpsLabel.rectTransform.anchoredPosition = new Vector2(-24, -24);
+            fpsLabel.rectTransform.sizeDelta = new Vector2(420, 32);
+            var fpsCounter = canvasGo.AddComponent<FpsCounter>();
+            var fpsSo = new SerializedObject(fpsCounter);
+            fpsSo.FindProperty("label").objectReferenceValue = fpsLabel;
+            fpsSo.ApplyModifiedPropertiesWithoutUndo();
 
             var eventSystem = new GameObject("EventSystem", typeof(UnityEngine.EventSystems.EventSystem), typeof(UnityEngine.InputSystem.UI.InputSystemUIInputModule));
             eventSystem.GetComponent<UnityEngine.InputSystem.UI.InputSystemUIInputModule>().AssignDefaultActions();
