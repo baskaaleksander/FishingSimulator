@@ -5,6 +5,7 @@
         "FishingSim.Runtime",
         "Unity.InputSystem",
         "Unity.RenderPipelines.Universal.Runtime",
+        "Unity.RenderPipelines.Core.Runtime",
         "UnityEngine.UI"
     ],
     "includePlatforms": [

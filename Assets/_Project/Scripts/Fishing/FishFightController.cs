@@ -12,7 +12,7 @@ namespace FishingSim
         [SerializeField] Transform fish;
         [SerializeField] Transform shorePoint;
         [SerializeField] FightConfig config;
-        [SerializeField] float swimDepth = 0.4f;
+        [SerializeField] float swimDepth = 0.25f;
         [SerializeField] float swimAmplitude = 3f;
 
         GameManager gm;

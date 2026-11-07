@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.IO;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -8,10 +9,14 @@ using UnityEngine.UI;
 
 namespace FishingSim.EditorTools
 {
-    public static class LakeSceneBuilder
+    public static partial class LakeSceneBuilder
     {
         const string Root = "Assets/_Project";
         const string ScenePath = Root + "/Scenes/FishingLake.unity";
+        const string NatureDir = "Assets/ThirdParty/KenneyNature/";
+        const string SurvivalDir = "Assets/ThirdParty/KenneySurvival/";
+        const string RodPath = "Assets/ThirdParty/FishinRod/FishingRod_Lvl2.fbx";
+        static readonly Rect PlayerArea = new Rect(-7f, -10f, 14f, 30f);
 
         [MenuItem("Fishing/Setup Rendering (URP)")]
         public static void SetupUrp()
@@ -28,6 +33,9 @@ namespace FishingSim.EditorTools
                 AssetDatabase.CreateAsset(asset, assetPath);
             }
 
+            asset.supportsCameraDepthTexture = true;
+            asset.shadowDistance = 80f;
+            EditorUtility.SetDirty(asset);
             GraphicsSettings.defaultRenderPipeline = asset;
             int original = QualitySettings.GetQualityLevel();
             for (int i = 0; i < QualitySettings.names.Length; i++)
@@ -49,9 +57,7 @@ namespace FishingSim.EditorTools
             var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
             int waterLayer = LayerMask.NameToLayer("Water");
 
-            var grass = MakeMat("Grass", new Color(0.35f, 0.55f, 0.25f));
-            var sand = MakeMat("LakeBed", new Color(0.55f, 0.5f, 0.35f));
-            var water = MakeMat("Water", new Color(0.1f, 0.4f, 0.6f, 0.75f), transparent: true);
+            var water = MakeWaterMat();
             var wood = MakeMat("Wood", new Color(0.45f, 0.3f, 0.15f));
             var rodMat = MakeMat("Rod", new Color(0.15f, 0.1f, 0.05f));
             var lureMat = MakeMat("Lure", new Color(0.9f, 0.15f, 0.1f));
@@ -60,32 +66,48 @@ namespace FishingSim.EditorTools
             var light = lightGo.AddComponent<Light>();
             light.type = LightType.Directional;
             light.shadows = LightShadows.Soft;
-            lightGo.transform.rotation = Quaternion.Euler(50f, -30f, 0f);
+            light.color = new Color(1f, 0.92f, 0.78f);
+            light.intensity = 1.3f;
+            lightGo.transform.rotation = Quaternion.Euler(28f, 160f, 0f);
             RenderSettings.sun = light;
 
-            // Lake spans x in [-30, 30], z in [4, 64]; the player stands on a dock at z ~ 0.
+            var sky = new Material(Shader.Find("FishingSim/Sky"));
+            AssetDatabase.DeleteAsset(Root + "/Materials/Sky.mat");
+            AssetDatabase.CreateAsset(sky, Root + "/Materials/Sky.mat");
+            RenderSettings.skybox = sky;
+            RenderSettings.ambientMode = AmbientMode.Trilight;
+            RenderSettings.ambientSkyColor = new Color(0.55f, 0.7f, 0.92f);
+            RenderSettings.ambientEquatorColor = new Color(0.62f, 0.68f, 0.72f);
+            RenderSettings.ambientGroundColor = new Color(0.35f, 0.4f, 0.3f);
+            RenderSettings.fog = true;
+            RenderSettings.fogMode = FogMode.ExponentialSquared;
+            RenderSettings.fogDensity = 0.007f;
+            RenderSettings.fogColor = new Color(0.72f, 0.84f, 0.94f);
+
+            CreatePostProcessing();
+
+            // The lake outline and bed come from LakeTerrain; the water box is bigger than the lake and is
+            // hidden by the terrain wherever the ground rises above the water level.
             var env = new GameObject("Environment").transform;
-            Box("Shore", env, new Vector3(0, -0.5f, -8), new Vector3(100, 1, 24), grass);
-            Box("FarBank", env, new Vector3(0, -0.5f, 94), new Vector3(100, 1, 60), grass);
-            Box("LeftBank", env, new Vector3(-65, -0.5f, 34), new Vector3(70, 1, 60), grass);
-            Box("RightBank", env, new Vector3(65, -0.5f, 34), new Vector3(70, 1, 60), grass);
-            Box("LakeBed", env, new Vector3(0, -3.5f, 34), new Vector3(60, 1, 60), sand);
-            var waterGo = Box("WaterSurface", env, new Vector3(0, -0.55f, 34), new Vector3(60, 0.1f, 60), water);
+            BuildTerrain(env);
+            var waterGo = Box("WaterSurface", env, new Vector3(0, -0.55f, 36), new Vector3(120, 0.1f, 100), water);
             waterGo.layer = waterLayer;
             var wc = waterGo.GetComponent<BoxCollider>();
             wc.isTrigger = true;
             // thick trigger (3 m deep, top flush with the surface) so a fast lure cannot tunnel through it
             wc.size = new Vector3(1f, 30f, 1f);
             wc.center = new Vector3(0f, -14.5f, 0f);
-            Box("Dock", env, new Vector3(0, -0.15f, 1.5f), new Vector3(3, 0.2f, 6), wood);
+            var matCache = new Dictionary<Material, Material>();
+            BuildDock(env, wood, matCache);
+            BuildScenery(new GameObject("Scenery").transform, matCache);
 
             var shore = new GameObject("ShorePoint").transform;
-            shore.position = new Vector3(0, 0, 4);
+            shore.position = new Vector3(0, 0, 6);
 
             new GameObject("GameManager").AddComponent<GameManager>();
 
             var player = new GameObject("Player");
-            player.transform.position = new Vector3(0, 0, 0.5f);
+            player.transform.position = new Vector3(0, 0.05f, 6f);
             var input = player.AddComponent<FishingInput>();
             var camGo = new GameObject("Main Camera") { tag = "MainCamera" };
             camGo.transform.SetParent(player.transform, false);
@@ -94,7 +116,9 @@ namespace FishingSim.EditorTools
             cam.nearClipPlane = 0.05f;
             cam.farClipPlane = 400f;
             camGo.AddComponent<AudioListener>();
-            camGo.AddComponent<UniversalAdditionalCameraData>();
+            var camData = camGo.AddComponent<UniversalAdditionalCameraData>();
+            camData.renderPostProcessing = true;
+            camData.antialiasing = AntialiasingMode.SubpixelMorphologicalAntiAliasing;
 
             var look = player.AddComponent<FirstPersonLook>();
             var lookSo = new SerializedObject(look);
@@ -102,18 +126,36 @@ namespace FishingSim.EditorTools
             lookSo.FindProperty("cameraTransform").objectReferenceValue = camGo.transform;
             lookSo.ApplyModifiedPropertiesWithoutUndo();
 
-            // Rod viewmodel; a default cylinder is 2 units tall, so its tip is at local y = 1.
-            var rod = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-            rod.name = "Rod";
-            Object.DestroyImmediate(rod.GetComponent<Collider>());
-            rod.transform.SetParent(camGo.transform, false);
-            rod.transform.localScale = new Vector3(0.03f, 1.1f, 0.03f);
-            rod.transform.localPosition = new Vector3(0.3f, -0.25f, 0.9f);
-            rod.transform.localRotation = Quaternion.Euler(70f, 0f, -5f);
-            rod.GetComponent<Renderer>().sharedMaterial = rodMat;
-            var tip = new GameObject("RodTip").transform;
-            tip.SetParent(rod.transform, false);
-            tip.localPosition = new Vector3(0, 1f, 0);
+            Transform tip;
+            var rodPrefab = ModelTools.Load(RodPath);
+            if (rodPrefab != null)
+            {
+                const float rodLength = 1.7f;
+                var rodRoot = ModelTools.CreateAligned(rodPrefab, "Rod", rodLength, true);
+                ModelTools.FixMaterials(rodRoot, matCache);
+                foreach (var r in rodRoot.GetComponentsInChildren<Renderer>())
+                    r.shadowCastingMode = ShadowCastingMode.Off;
+                rodRoot.transform.SetParent(camGo.transform, false);
+                rodRoot.transform.localPosition = new Vector3(0.3f, -0.55f, 0.3f);
+                rodRoot.transform.localRotation = Quaternion.Euler(-22f, -3f, 180f);
+                tip = new GameObject("RodTip").transform;
+                tip.SetParent(rodRoot.transform, false);
+                tip.localPosition = new Vector3(0f, 0f, rodLength);
+            }
+            else
+            {
+                var rod = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+                rod.name = "Rod";
+                Object.DestroyImmediate(rod.GetComponent<Collider>());
+                rod.transform.SetParent(camGo.transform, false);
+                rod.transform.localScale = new Vector3(0.03f, 1.1f, 0.03f);
+                rod.transform.localPosition = new Vector3(0.3f, -0.25f, 0.9f);
+                rod.transform.localRotation = Quaternion.Euler(70f, 0f, -5f);
+                rod.GetComponent<Renderer>().sharedMaterial = rodMat;
+                tip = new GameObject("RodTip").transform;
+                tip.SetParent(rod.transform, false);
+                tip.localPosition = new Vector3(0, 1f, 0);
+            }
 
             // Lure prefab: kinematic at rest, continuous collision so it cannot tunnel through terrain.
             var lure = GameObject.CreatePrimitive(PrimitiveType.Sphere);
@@ -156,16 +198,47 @@ namespace FishingSim.EditorTools
             var fishConfig = LoadOrCreate<FishConfig>(Root + "/Config/FishConfig.asset");
             var fightConfig = LoadOrCreate<FightConfig>(Root + "/Config/FightConfig.asset");
 
-            var fishMat = MakeMat("Fish", new Color(0.95f, 0.5f, 0.15f));
-            var fish = new GameObject("Fish").transform;
-            var fishBody = GameObject.CreatePrimitive(PrimitiveType.Capsule);
-            Object.DestroyImmediate(fishBody.GetComponent<Collider>());
-            fishBody.transform.SetParent(fish, false);
-            fishBody.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
-            fishBody.transform.localScale = new Vector3(0.22f, 0.35f, 0.22f);
-            fishBody.GetComponent<Renderer>().sharedMaterial = fishMat;
+            var fishLargePrefab = ModelTools.Load(SurvivalDir + "fish-large.fbx");
+            Transform fish;
+            if (fishLargePrefab != null)
+            {
+                var hookedFish = ModelTools.CreateAligned(fishLargePrefab, "Fish", 0.9f, false);
+                ModelTools.FixMaterials(hookedFish, matCache);
+                fish = hookedFish.transform;
+            }
+            else
+            {
+                var fishMat = MakeMat("Fish", new Color(0.95f, 0.5f, 0.15f));
+                fish = new GameObject("Fish").transform;
+                var fishBody = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+                Object.DestroyImmediate(fishBody.GetComponent<Collider>());
+                fishBody.transform.SetParent(fish, false);
+                fishBody.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+                fishBody.transform.localScale = new Vector3(0.22f, 0.35f, 0.22f);
+                fishBody.GetComponent<Renderer>().sharedMaterial = fishMat;
+            }
+
+            var fishSmallPrefab = ModelTools.Load(SurvivalDir + "fish.fbx");
+            if (fishSmallPrefab != null && fishLargePrefab != null)
+            {
+                var school = new GameObject("AmbientFish");
+                var schoolRandom = new System.Random(77);
+                for (int i = 0; i < 14; i++)
+                {
+                    bool large = i % 3 == 0;
+                    float length = large ? 0.9f + (float)schoolRandom.NextDouble() * 0.4f : 0.4f + (float)schoolRandom.NextDouble() * 0.3f;
+                    var swimmer = ModelTools.CreateAligned(large ? fishLargePrefab : fishSmallPrefab, "AmbientFish " + i, length, false);
+                    ModelTools.FixMaterials(swimmer, matCache);
+                    swimmer.transform.SetParent(school.transform, false);
+                }
+                school.AddComponent<AmbientFish>();
+            }
 
             var systems = new GameObject("FishingSystems");
+
+            var dotMat = MakeSpriteMat("SplashDot", MakeSoftDot());
+            var rippleMat = MakeSpriteMat("Ripple", null);
+            var splash = CreateSplash(dotMat);
 
             var biteSystem = systems.AddComponent<BiteSystem>();
             var biteSo = new SerializedObject(biteSystem);
@@ -188,6 +261,22 @@ namespace FishingSim.EditorTools
             fightSo.FindProperty("shorePoint").objectReferenceValue = shore;
             fightSo.FindProperty("config").objectReferenceValue = fightConfig;
             fightSo.ApplyModifiedPropertiesWithoutUndo();
+
+            var effects = systems.AddComponent<WaterEffects>();
+            var effectsSo = new SerializedObject(effects);
+            effectsSo.FindProperty("lure").objectReferenceValue = lureInstance.GetComponent<LureController>();
+            effectsSo.FindProperty("bite").objectReferenceValue = biteSystem;
+            effectsSo.FindProperty("splash").objectReferenceValue = splash;
+            effectsSo.FindProperty("rippleMaterial").objectReferenceValue = rippleMat;
+            effectsSo.ApplyModifiedPropertiesWithoutUndo();
+
+            var schoolObject = GameObject.Find("AmbientFish");
+            if (schoolObject != null)
+            {
+                var ambientSo = new SerializedObject(schoolObject.GetComponent<AmbientFish>());
+                ambientSo.FindProperty("lure").objectReferenceValue = lureInstance.GetComponent<LureController>();
+                ambientSo.ApplyModifiedPropertiesWithoutUndo();
+            }
 
             var canvasGo = new GameObject("HUD Canvas");
             var canvas = canvasGo.AddComponent<Canvas>();
@@ -297,6 +386,164 @@ namespace FishingSim.EditorTools
             EditorSceneManager.SaveScene(scene, ScenePath);
             EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(ScenePath, true) };
             Debug.Log("FishingLake scene built: " + ScenePath);
+        }
+
+        static void BuildDock(Transform parent, Material fallback, Dictionary<Material, Material> matCache)
+        {
+            const float width = 2.6f;
+            const float zStart = -2f;
+            const float zEnd = 7f;
+            const float topY = 0.05f;
+
+            var prefab = ModelTools.Load(NatureDir + "path_wood.fbx");
+            if (prefab == null)
+            {
+                Box("Dock", parent, new Vector3(0, -0.05f, (zStart + zEnd) / 2f), new Vector3(width, 0.2f, zEnd - zStart), fallback);
+                return;
+            }
+
+            var probe = (GameObject)PrefabUtility.InstantiatePrefab(prefab);
+            probe.transform.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
+            Bounds native = ModelTools.RendererBounds(probe);
+            Object.DestroyImmediate(probe);
+
+            bool longAlongX = native.size.x > native.size.z;
+            float nativeLength = longAlongX ? native.size.x : native.size.z;
+            float nativeWidth = longAlongX ? native.size.z : native.size.x;
+            float scale = width / Mathf.Max(0.0001f, nativeWidth);
+            float pieceLength = nativeLength * scale;
+            int count = Mathf.CeilToInt((zEnd - zStart) / pieceLength);
+
+            var dock = new GameObject("Dock").transform;
+            dock.SetParent(parent, false);
+            for (int i = 0; i < count; i++)
+            {
+                var piece = (GameObject)PrefabUtility.InstantiatePrefab(prefab, dock);
+                piece.transform.SetPositionAndRotation(Vector3.zero, Quaternion.Euler(0f, longAlongX ? 90f : 0f, 0f));
+                piece.transform.localScale = Vector3.one * scale;
+                Bounds b = ModelTools.RendererBounds(piece);
+                float centerZ = zStart + (i + 0.5f) * pieceLength;
+                piece.transform.position += new Vector3(-b.center.x, topY - b.max.y, centerZ - b.center.z);
+                ModelTools.FixMaterials(piece, matCache);
+            }
+
+            var collider = Box("DockCollider", dock, new Vector3(0f, topY - 0.1f, (zStart + zEnd) / 2f), new Vector3(width, 0.2f, zEnd - zStart), fallback);
+            Object.DestroyImmediate(collider.GetComponent<MeshRenderer>());
+            Object.DestroyImmediate(collider.GetComponent<MeshFilter>());
+        }
+
+        static Material MakeWaterMat()
+        {
+            string path = Root + "/Materials/Water.mat";
+            AssetDatabase.DeleteAsset(path);
+            var mat = new Material(Shader.Find("FishingSim/Water"));
+            AssetDatabase.CreateAsset(mat, path);
+            return mat;
+        }
+
+        static Material MakeSpriteMat(string name, Texture2D texture)
+        {
+            string path = Root + "/Materials/" + name + ".mat";
+            AssetDatabase.DeleteAsset(path);
+            var mat = new Material(Shader.Find("Sprites/Default"));
+            if (texture != null) mat.mainTexture = texture;
+            AssetDatabase.CreateAsset(mat, path);
+            return mat;
+        }
+
+        static Texture2D MakeSoftDot()
+        {
+            string path = Root + "/Materials/SoftDot.asset";
+            var existing = AssetDatabase.LoadAssetAtPath<Texture2D>(path);
+            if (existing != null) return existing;
+
+            const int size = 64;
+            var tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
+            for (int y = 0; y < size; y++)
+            {
+                for (int x = 0; x < size; x++)
+                {
+                    float d = Vector2.Distance(new Vector2(x, y), new Vector2(size / 2f, size / 2f)) / (size / 2f);
+                    float a = Mathf.Clamp01(1f - d);
+                    tex.SetPixel(x, y, new Color(1f, 1f, 1f, a * a));
+                }
+            }
+            tex.Apply();
+            AssetDatabase.CreateAsset(tex, path);
+            return tex;
+        }
+
+        static ParticleSystem CreateSplash(Material material)
+        {
+            var go = new GameObject("Splash");
+            go.transform.rotation = Quaternion.Euler(-90f, 0f, 0f);
+            var ps = go.AddComponent<ParticleSystem>();
+
+            var main = ps.main;
+            main.playOnAwake = false;
+            main.loop = false;
+            main.duration = 0.5f;
+            main.startLifetime = new ParticleSystem.MinMaxCurve(0.5f, 0.9f);
+            main.startSpeed = new ParticleSystem.MinMaxCurve(1.5f, 3.5f);
+            main.startSize = new ParticleSystem.MinMaxCurve(0.06f, 0.14f);
+            main.gravityModifier = 1.2f;
+            main.simulationSpace = ParticleSystemSimulationSpace.World;
+            main.startColor = new Color(1f, 1f, 1f, 0.9f);
+
+            var emission = ps.emission;
+            emission.rateOverTime = 0f;
+            emission.SetBursts(new[] { new ParticleSystem.Burst(0f, 24) });
+
+            var shape = ps.shape;
+            shape.shapeType = ParticleSystemShapeType.Cone;
+            shape.angle = 25f;
+            shape.radius = 0.05f;
+
+            var fade = new Gradient();
+            fade.SetKeys(
+                new[] { new GradientColorKey(Color.white, 0f), new GradientColorKey(Color.white, 1f) },
+                new[] { new GradientAlphaKey(1f, 0f), new GradientAlphaKey(0f, 1f) });
+            var colorOverLifetime = ps.colorOverLifetime;
+            colorOverLifetime.enabled = true;
+            colorOverLifetime.color = fade;
+
+            go.GetComponent<ParticleSystemRenderer>().sharedMaterial = material;
+            return ps;
+        }
+
+        static void CreatePostProcessing()
+        {
+            string path = Root + "/Config/PostProcessing.asset";
+            AssetDatabase.DeleteAsset(path);
+            var profile = ScriptableObject.CreateInstance<VolumeProfile>();
+            AssetDatabase.CreateAsset(profile, path);
+
+            var bloom = profile.Add<Bloom>(false);
+            bloom.threshold.Override(1f);
+            bloom.intensity.Override(0.3f);
+            bloom.scatter.Override(0.6f);
+            AssetDatabase.AddObjectToAsset(bloom, profile);
+
+            var tonemapping = profile.Add<Tonemapping>(false);
+            tonemapping.mode.Override(TonemappingMode.ACES);
+            AssetDatabase.AddObjectToAsset(tonemapping, profile);
+
+            var colorAdjustments = profile.Add<ColorAdjustments>(false);
+            colorAdjustments.contrast.Override(10f);
+            colorAdjustments.saturation.Override(12f);
+            AssetDatabase.AddObjectToAsset(colorAdjustments, profile);
+
+            var vignette = profile.Add<Vignette>(false);
+            vignette.intensity.Override(0.25f);
+            vignette.smoothness.Override(0.4f);
+            AssetDatabase.AddObjectToAsset(vignette, profile);
+
+            AssetDatabase.SaveAssets();
+
+            var volumeGo = new GameObject("Post Processing");
+            var volume = volumeGo.AddComponent<Volume>();
+            volume.isGlobal = true;
+            volume.sharedProfile = profile;
         }
 
         static T LoadOrCreate<T>(string path) where T : ScriptableObject

@@ -9,11 +9,19 @@ namespace FishingSim
         [SerializeField] Text label;
         [SerializeField] float refreshInterval = 0.5f;
 
+        [SerializeField] float warmupSeconds = 2f;
+
+        float warmupLeft;
         float intervalTime;
         int intervalFrames;
         float totalTime;
         int totalFrames;
         float minFps = float.MaxValue;
+
+        void Start()
+        {
+            warmupLeft = warmupSeconds;
+        }
 
         void Update()
         {
@@ -21,6 +29,12 @@ namespace FishingSim
                 label.gameObject.SetActive(!label.gameObject.activeSelf);
 
             float dt = Time.unscaledDeltaTime;
+            if (warmupLeft > 0f)
+            {
+                warmupLeft -= dt;
+                return;
+            }
+
             intervalTime += dt;
             intervalFrames++;
             totalTime += dt;
