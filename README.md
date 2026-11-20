@@ -1,6 +1,6 @@
 # Dokumentacja projektu Fishing Simulator
 
-Aleksander Baska
+Aleksander Baska, Łukasz Bączkiewicz
 
 
 ## 1. Krótki opis projektu
@@ -355,17 +355,17 @@ Błędy krytyczne w `Player.log`: brak
 
 ### 10.3 Nagranie rozgrywki
 
-[▶ Obejrzyj nagranie rozgrywki](docs/demo.mp4)
+[![Nagranie rozgrywki – Fishing Simulator](https://img.youtube.com/vi/NOLqeXWvWS8/maxresdefault.jpg)](https://youtu.be/NOLqeXWvWS8)
 
 Na nagraniu widać następujące elementy specyfikacji:
 
 | Czas | Element | Wymaganie |
 | --- | --- | --- |
-| [DO UZUPEŁNIENIA] | Ładowanie rzutu, pasek siły, rzut słaby i mocny, lądowanie w wodzie | FR-01, FR-04 |
-| [DO UZUPEŁNIENIA] | Branie („BRANIE!”) i start holu | FR-03, FR-02 |
-| [DO UZUPEŁNIENIA] | Hol: zwijanie, napięcie, szarpnięcia ryby, stany ryby | FR-02, FR-04 |
-| [DO UZUPEŁNIENIA] | Zerwanie żyłki lub ucieczka przy luźnej żyłce | FR-02 |
-| [DO UZUPEŁNIENIA] | Złowienie ryby, ekran wyniku i „Spróbuj ponownie” | FR-02, FR-05 |
+| 0:03 | Ładowanie rzutu, pasek siły, rzut słaby i mocny, lądowanie w wodzie | FR-01, FR-04 |
+| 0:16 | Branie („BRANIE!”) i start holu | FR-03, FR-02 |
+| 0:16-0:32 | Hol: zwijanie, napięcie, szarpnięcia ryby, stany ryby | FR-02, FR-04 |
+| 0:33 | Zerwanie żyłki lub ucieczka przy luźnej żyłce | FR-02 |
+| 1:05 | Złowienie ryby, ekran wyniku i „Spróbuj ponownie” | FR-02, FR-05 |
 
 ### 10.4 Elementy kodu warte uwagi
 
